@@ -9,7 +9,7 @@ from to_monke_classifier.data.download import download_dvc_data
 from to_monke_classifier.models.classifier import MonkeyClassifier
 
 
-@hydra.main(config_path="../configs", config_name="config", version_base=None)
+@hydra.main(config_path="../configs", config_name="train", version_base=None)
 def run_training(cfg: DictConfig):
     download_dvc_data(cfg.data.train_dir)
     download_dvc_data(cfg.data.val_dir)
