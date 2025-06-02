@@ -1,16 +1,25 @@
+import os
+
 import hydra
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from omegaconf import DictConfig
+import logging
+import mlflow
+import mlflow.pytorch
 
 from to_monke_classifier.data.dataset import get_dataloaders
 from to_monke_classifier.data.download import download_dvc_data
 from to_monke_classifier.models.classifier import MonkeyClassifier
+from to_monke_classifier.plotting import save_loss_acc_plot
+from to_monke_classifier.utils import get_git_commit_hash, setup_logging
+
 
 
 @hydra.main(config_path="../configs", config_name="train", version_base=None)
 def run_training(cfg: DictConfig):
+    # setup_logging()
     download_dvc_data(cfg.data.train_dir)
     download_dvc_data(cfg.data.val_dir)
 
@@ -28,37 +37,82 @@ def run_training(cfg: DictConfig):
     optimizer = optim.Adam(
         model.parameters(), lr=cfg.training.lr, weight_decay=cfg.training.weight_decay
     )
-    print("Staring training loop")
-    for epoch in range(cfg.training.epochs):
-        model.train()
-        running_loss = 0
-        for images, labels in train_loader:
-            images, labels = images.to(device), labels.to(device)
 
-            outputs = model(images)
-            loss = criterion(outputs, labels)
+    commit_id = get_git_commit_hash()
 
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+    mlflow.set_tracking_uri(cfg.training.mlflow.url)
+    mlflow.set_experiment(cfg.training.mlflow.experiment_name)
+    os.makedirs(cfg.training.plots.dir, exist_ok=True)
 
-            running_loss += loss.item()
-        print(f"Epoch {epoch + 1}, Train Loss: {running_loss / len(train_loader)}")
+    train_losses, val_accs = [], []
 
-        model.eval()
-        correct, total = 0, 0
-        with torch.no_grad():
-            for images, labels in val_loader:
+    with mlflow.start_run(run_name="run_" + commit_id):
+        mlflow.log_params({
+            "epochs": cfg.training.epochs,
+            "batch_size": cfg.data.batch_size,
+            "lr": cfg.training.lr,
+            "weight_decay": cfg.training.weight_decay,
+            "num_classes": cfg.model.num_classes,
+            "fc_out_features": cfg.model.fc_params.linear_layer_out_features,
+            "fc_dropout": cfg.model.fc_params.dropout_rate,
+            "commit_id": commit_id,
+        })
+
+        for epoch in range(cfg.training.epochs):
+            model.train()
+            running_loss = 0
+            for images, labels in train_loader:
                 images, labels = images.to(device), labels.to(device)
-                outputs = model(images)
-                _, preds = torch.max(outputs, 1)
-                correct += (preds == labels).sum().item()
-                total += labels.size(0)
-        val_acc = correct / total * 100
-        print(f"Epoch {epoch + 1}, Val Accuracy: {val_acc:.2f}%")
 
-    torch.save(model.state_dict(), "monkey_classifier.pth")
-    print("Training finished! Model saved to monkey_classifier.pth")
+                outputs = model(images)
+                loss = criterion(outputs, labels)
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+                running_loss += loss.item()
+
+            train_loss = running_loss / len(train_loader)
+            train_losses.append(train_loss)
+            logging.info(f"Epoch {epoch + 1}: Train loss: {train_loss:.4f}")
+
+            model.eval()
+            correct, total = 0, 0
+            with torch.no_grad():
+                for images, labels in val_loader:
+                    images, labels = images.to(device), labels.to(device)
+                    outputs = model(images)
+                    _, preds = torch.max(outputs, 1)
+                    correct += (preds == labels).sum().item()
+                    total += labels.size(0)
+            val_acc = correct / total * 100
+            val_accs.append(val_acc)
+            logging.info(f"Epoch {epoch + 1}: Val accuracy: {val_acc:.2f}%")
+
+            mlflow.log_metric("train_loss", train_loss, step=epoch)
+            mlflow.log_metric("val_acc", val_acc, step=epoch)
+
+        plot_path = cfg.training.plots.file_path
+        save_loss_acc_plot(
+            train_losses,
+            val_accs,
+            plot_path,
+            title="Train Loss & Val Acc"
+        )
+        mlflow.log_artifact(plot_path)
+        metrics_path = cfg.training.plots.metrics_path
+        os.makedirs(os.path.dirname(metrics_path), exist_ok=True)
+        with open(metrics_path, "w") as f:
+            for epoch in range(cfg.training.epochs):
+                f.write(f"Epoch {epoch + 1}: loss={train_losses[epoch]}, val_acc={val_accs[epoch]}\n")
+        mlflow.log_artifact(metrics_path)
+
+        torch.save(model.state_dict(), cfg.training.checkpoint_file)
+        mlflow.pytorch.log_model(model, artifact_path=cfg.training.mlflow.artifact_path)
+
+    logging.info("===== Training finished =====")
+
 
 if __name__ == "__main__":
     run_training()
