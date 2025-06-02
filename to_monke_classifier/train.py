@@ -23,7 +23,7 @@ def run_training(cfg: DictConfig):
     )
 
     device = torch.device(cfg.training.device)
-    model = MonkeyClassifier(num_classes=cfg.model.num_classes).to(device)
+    model = MonkeyClassifier(num_classes=cfg.model.num_classes, fc_params=cfg.model.fc_params).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(
         model.parameters(), lr=cfg.training.lr, weight_decay=cfg.training.weight_decay

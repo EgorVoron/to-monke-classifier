@@ -2,7 +2,7 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
 
-def get_dataloaders(train_dir, val_dir, batch_size=16, img_size=224, num_workers=2):
+def get_dataloaders(train_dir, val_dir, batch_size, img_size, num_workers):
     transform = transforms.Compose(
         [
             transforms.Resize((img_size, img_size)),
