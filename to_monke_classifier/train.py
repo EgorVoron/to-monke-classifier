@@ -8,18 +8,18 @@ from omegaconf import DictConfig
 import logging
 import mlflow
 import mlflow.pytorch
+from torcheval.metrics.functional import multiclass_f1_score
 
 from to_monke_classifier.data.dataset import get_dataloaders
 from to_monke_classifier.data.download import download_dvc_data
 from to_monke_classifier.models.classifier import MonkeyClassifier
-from to_monke_classifier.plotting import save_loss_acc_plot
-from to_monke_classifier.utils import get_git_commit_hash, setup_logging
-
-
+from to_monke_classifier.plotting import (
+    save_loss_plot, save_accuracy_plot, save_f1_plot
+)
+from to_monke_classifier.utils import get_git_commit_hash
 
 @hydra.main(config_path="../configs", config_name="train", version_base=None)
 def run_training(cfg: DictConfig):
-    # setup_logging()
     download_dvc_data(cfg.data.train_dir)
     download_dvc_data(cfg.data.val_dir)
 
@@ -32,10 +32,15 @@ def run_training(cfg: DictConfig):
     )
 
     device = torch.device(cfg.training.device)
-    model = MonkeyClassifier(num_classes=cfg.model.num_classes, fc_params=cfg.model.fc_params).to(device)
+    model = MonkeyClassifier(
+        num_classes=cfg.model.num_classes,
+        fc_params=cfg.model.fc_params
+    ).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(
-        model.parameters(), lr=cfg.training.lr, weight_decay=cfg.training.weight_decay
+        model.parameters(),
+        lr=cfg.training.lr,
+        weight_decay=cfg.training.weight_decay
     )
 
     commit_id = get_git_commit_hash()
@@ -44,7 +49,7 @@ def run_training(cfg: DictConfig):
     mlflow.set_experiment(cfg.training.mlflow.experiment_name)
     os.makedirs(cfg.training.plots.dir, exist_ok=True)
 
-    train_losses, val_accs = [], []
+    train_losses, val_accs, f1_scores = [], [], []
 
     with mlflow.start_run(run_name="run_" + commit_id):
         mlflow.log_params({
@@ -79,6 +84,7 @@ def run_training(cfg: DictConfig):
 
             model.eval()
             correct, total = 0, 0
+            all_preds, all_labels = [], []
             with torch.no_grad():
                 for images, labels in val_loader:
                     images, labels = images.to(device), labels.to(device)
@@ -86,26 +92,39 @@ def run_training(cfg: DictConfig):
                     _, preds = torch.max(outputs, 1)
                     correct += (preds == labels).sum().item()
                     total += labels.size(0)
+                    all_preds.append(preds)
+                    all_labels.append(labels)
             val_acc = correct / total * 100
             val_accs.append(val_acc)
-            logging.info(f"Epoch {epoch + 1}: Val accuracy: {val_acc:.2f}%")
+            all_preds = torch.cat(all_preds)
+            all_labels = torch.cat(all_labels)
+            f1 = multiclass_f1_score(
+                all_preds,
+                all_labels,
+                num_classes=cfg.model.num_classes,
+                average="macro"
+            ).item()
+            f1_scores.append(f1)
+            logging.info(f"Epoch {epoch + 1}: Val accuracy: {val_acc:.2f}%, F1 macro: {f1:.4f}")
 
             mlflow.log_metric("train_loss", train_loss, step=epoch)
             mlflow.log_metric("val_acc", val_acc, step=epoch)
+            mlflow.log_metric("val_f1_macro", f1, step=epoch)
 
-        plot_path = cfg.training.plots.file_path
-        save_loss_acc_plot(
-            train_losses,
-            val_accs,
-            plot_path,
-            title="Train Loss & Val Acc"
-        )
-        mlflow.log_artifact(plot_path)
+        save_loss_plot(train_losses, cfg.training.plots.file_loss)
+        mlflow.log_artifact(cfg.training.plots.file_loss)
+
+        save_accuracy_plot(val_accs, cfg.training.plots.file_acc)
+        mlflow.log_artifact(cfg.training.plots.file_acc)
+
+        save_f1_plot(f1_scores, cfg.training.plots.file_f1)
+        mlflow.log_artifact(cfg.training.plots.file_f1)
+
         metrics_path = cfg.training.plots.metrics_path
         os.makedirs(os.path.dirname(metrics_path), exist_ok=True)
         with open(metrics_path, "w") as f:
             for epoch in range(cfg.training.epochs):
-                f.write(f"Epoch {epoch + 1}: loss={train_losses[epoch]}, val_acc={val_accs[epoch]}\n")
+                f.write(f"Epoch {epoch + 1}: loss={train_losses[epoch]}, val_acc={val_accs[epoch]}, val_f1_macro={f1_scores[epoch]}\n")
         mlflow.log_artifact(metrics_path)
 
         torch.save(model.state_dict(), cfg.training.checkpoint_file)

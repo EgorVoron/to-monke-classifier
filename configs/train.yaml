@@ -22,6 +22,8 @@ training:
     artifact_path: model
   plots:
     dir: plots/
-    file_path: plots/train_loss_val_acc.png
+    file_loss: plots/train_loss.png
+    file_acc: plots/val_acc.png
+    file_f1: plots/val_f1_macro.png
     metrics_path: plots/metrics.txt
   checkpoint_file: monkey_classifier.pth
