@@ -1,5 +1,7 @@
-import matplotlib.pyplot as plt
 import os
+
+import matplotlib.pyplot as plt
+
 
 def save_loss_plot(losses, out_path, title="Train Loss"):
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
@@ -12,6 +14,7 @@ def save_loss_plot(losses, out_path, title="Train Loss"):
     plt.savefig(out_path)
     plt.close()
 
+
 def save_accuracy_plot(accs, out_path, title="Val Accuracy"):
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     plt.figure()
@@ -22,6 +25,7 @@ def save_accuracy_plot(accs, out_path, title="Val Accuracy"):
     plt.title(title)
     plt.savefig(out_path)
     plt.close()
+
 
 def save_f1_plot(f1_scores, out_path, title="Val F1 Macro"):
     os.makedirs(os.path.dirname(out_path), exist_ok=True)

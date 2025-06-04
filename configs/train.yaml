@@ -12,14 +12,14 @@ model:
     dropout_rate: 0.4
 
 training:
-  epochs: 2
+  epochs: 5
   lr: 0.001
   weight_decay: 0.0001
   device: cpu
   mlflow:
     url: "http://127.0.0.1:8080"
     experiment_name: "monkey_classifier"
-    artifact_path: model
+    artifact_path: "model"
   plots:
     dir: plots/
     file_loss: plots/train_loss.png
@@ -27,3 +27,4 @@ training:
     file_f1: plots/val_f1_macro.png
     metrics_path: plots/metrics.txt
   checkpoint_file: monkey_classifier.pth
+  onnx_file: monkey_classifier.onnx

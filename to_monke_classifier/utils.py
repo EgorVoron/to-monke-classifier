@@ -1,5 +1,7 @@
-import git
 import logging
+
+import git
+
 
 def get_git_commit_hash():
     try:
