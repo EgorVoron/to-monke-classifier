@@ -1,0 +1,6 @@
+server:
+  url: "http://127.0.0.1:5001/invocations"
+
+data:
+  image_size: 224
+  labels_info_path: data/raw/monkey_labels.json

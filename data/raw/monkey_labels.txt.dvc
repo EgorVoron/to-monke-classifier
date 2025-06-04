@@ -1,0 +1,5 @@
+outs:
+- md5: 354d19c0733c47ef3a6cce5b633116b0
+  size: 928
+  hash: md5
+  path: monkey_labels.txt

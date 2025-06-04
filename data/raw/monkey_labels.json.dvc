@@ -1,0 +1,5 @@
+outs:
+- md5: adcd903866bf694137889451f555b4b6
+  size: 818
+  hash: md5
+  path: monkey_labels.json
