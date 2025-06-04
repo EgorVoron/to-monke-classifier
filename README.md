@@ -58,6 +58,14 @@
 ---
 
 ##  Технические детали
+### Общее
+Для зависимостей - **poetry**  
+Фреймворк ML - **pytorch**  
+Логгинг - **mlflow**  
+Данные хранятся в **dvc**, хранилище - google storage. Скачиваются на этапе train  
+Для конфигов используется **hydra**, конфиги лежат в `configs/`  
+Используется **Fire**
+
 
 ### Setup
 
@@ -82,6 +90,12 @@ export GDRIVE_CLIENT_SECRET=YYYY
 ./set_gdrive_secrets.sh
 ```
 
+Для автоформатирования и статического анализа используется pre-commit.  
+Установите хуки командой:
+```
+pre-commit install
+pre-commit run -a
+```
  
 ### Setup
 Запуск тренировки: 
