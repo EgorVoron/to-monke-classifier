@@ -1,3 +1,5 @@
+import logging
+
 import fire
 from omegaconf import OmegaConf
 
@@ -11,7 +13,7 @@ def train_command():
 
 def infer_command(image_path, config_path="configs/infer.yaml"):
     cfg = OmegaConf.load(config_path)
-    print(
+    logging.info(
         run_inference(
             image_path, cfg.server.url, cfg.data.image_size, cfg.data.labels_info_path
         )
